@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aurelia Bay — 3D open-world crime game</title>
+<style>
+  :root {
+    --ink: #e9e6df;
+    --muted: #b8b2a4;
+    --accent: #ffd23c;
+    --ember: #ff5a3c;
+    --teal: #2fd6c2;
+    --panel: rgba(16, 20, 28, 0.82);
+    --hairline: rgba(233, 230, 223, 0.25);
+    --font-ui: system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-readout: ui-monospace, 'SF Mono', Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #1a1210; color: var(--ink); font-family: var(--font-ui); }
+  #game, #game canvas { position: fixed; inset: 0; display: block; width: 100%; height: 100%; }
+  #hud { position: fixed; inset: 0; pointer-events: none; }
+  .pill { background: var(--panel); border: 1px solid var(--hairline); border-radius: 8px; padding: 8px 12px; }
+
+  #topleft { position: fixed; left: 18px; top: 16px; display: grid; gap: 6px; }
+  #clock { font-family: var(--font-readout); font-size: 26px; }
+  #radio { font-size: 12px; color: var(--muted); letter-spacing: 0.08em; }
+
+  #objective { position: fixed; left: 50%; top: 16px; transform: translateX(-50%); font-size: 15px; text-align: center; max-width: 560px; }
+  #objective b { color: var(--accent); }
+
+  #topright { position: fixed; right: 18px; top: 16px; text-align: right; display: grid; gap: 6px; }
+  #stars { font-size: 22px; letter-spacing: 2px; }
+  #cash { font-family: var(--font-readout); font-size: 24px; color: var(--accent); }
+  #district { font-size: 12px; color: var(--muted); letter-spacing: 0.12em; text-transform: uppercase; }
+
+  #minimap { position: fixed; left: 18px; bottom: 18px; width: 190px; height: 190px; border-radius: 50%; border: 2px solid var(--hairline); background: rgba(16, 20, 28, 0.7); }
+
+  #bottomright { position: fixed; right: 18px; bottom: 18px; width: 230px; display: grid; gap: 6px; text-align: right; }
+  .bar { height: 10px; background: rgba(16, 20, 28, 0.8); border: 1px solid var(--hairline); border-radius: 2px; overflow: hidden; }
+  #health-fill { height: 100%; width: 100%; background: #3fae6a; }
+  #armour-fill { height: 100%; width: 0%; background: #3ec6ff; }
+  #speed { font-family: var(--font-readout); font-size: 26px; }
+  #ammo { font-family: var(--font-readout); font-size: 14px; color: var(--muted); }
+
+  #prompt { position: fixed; left: 50%; bottom: 120px; transform: translateX(-50%); font-family: var(--font-readout); font-size: 15px; color: var(--accent); background: var(--panel); padding: 8px 14px; border: 1px solid var(--hairline); border-radius: 6px; }
+  #prompt[hidden] { display: none; }
+  #toast { position: fixed; left: 50%; bottom: 170px; transform: translateX(-50%); font-size: 15px; background: var(--panel); padding: 8px 14px; border: 1px solid var(--hairline); border-radius: 6px; white-space: nowrap; }
+  #toast[hidden] { display: none; }
+
+  #banner { position: fixed; left: 50%; top: 30%; transform: translate(-50%, -50%); text-align: center; }
+  #banner[hidden] { display: none; }
+  #banner-title { font-size: 36px; font-weight: 700; letter-spacing: 0.02em; text-shadow: 0 2px 18px rgba(0, 0, 0, 0.85); color: var(--accent); white-space: nowrap; }
+  #banner-sub { font-size: 17px; color: var(--ink); margin-top: 8px; text-shadow: 0 2px 10px rgba(0, 0, 0, 0.85); }
+
+  #vignette { position: fixed; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at center, transparent 55%, rgba(255, 40, 20, 0.5) 100%); }
+
+  .overlay { position: fixed; inset: 0; display: grid; place-items: center; padding: 24px; background: rgba(20, 12, 8, 0.72); }
+  .overlay[hidden] { display: none; }
+  .panel { width: min(520px, 100%); padding: 34px; background: rgba(24, 18, 14, 0.95); border: 1px solid var(--hairline); border-radius: 10px; }
+  .panel h1 { margin: 0 0 6px; font-size: 42px; line-height: 1.05; letter-spacing: 0.02em; color: var(--accent); }
+  .panel p { margin: 0 0 24px; font-size: 16px; line-height: 1.55; color: var(--muted); }
+  #overlay-btn { font: inherit; font-weight: 600; padding: 12px 20px; border: 1px solid var(--accent); border-radius: 8px; background: var(--accent); color: #1a1210; cursor: pointer; }
+  #overlay-btn:hover { background: var(--ink); border-color: var(--ink); }
+  .keys { margin: 24px 0 0; padding: 0; list-style: none; display: grid; gap: 8px; font-size: 14px; color: var(--muted); }
+  .keys kbd { min-width: 24px; padding: 2px 6px; border: 1px solid var(--hairline); border-radius: 4px; font-family: var(--font-readout); font-size: 12px; color: var(--ink); text-align: center; display: inline-block; }
+  #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+</style>
+</head>
+<body>
+<canvas id="game" aria-label="Aurelia Bay: a 3D open-world crime game in a sunset coastal city"></canvas>
+
+<div id="hud" aria-hidden="true">
+  <div id="vignette"></div>
+  <div id="topleft">
+    <div id="clock" class="pill">17:20</div>
+    <div id="radio" class="pill">WAVE 98 — Synthwave</div>
+  </div>
+  <div id="objective" class="pill"><b id="objective-title">MISSION 1 — WELCOME HOME</b><br><span id="objective-text">Drive to Rico's Bar</span></div>
+  <div id="topright">
+    <div id="stars" class="pill">☆☆☆☆☆</div>
+    <div id="cash" class="pill">$120</div>
+    <div id="district" class="pill">Aurelia Bay</div>
+  </div>
+  <canvas id="minimap" width="190" height="190"></canvas>
+  <div id="bottomright">
+    <div id="speed"></div>
+    <div id="ammo"></div>
+    <div class="bar"><div id="health-fill"></div></div>
+    <div class="bar"><div id="armour-fill"></div></div>
+  </div>
+  <div id="prompt" hidden></div>
+  <div id="toast" hidden></div>
+  <div id="banner" hidden>
+    <div id="banner-title"></div>
+    <div id="banner-sub"></div>
+  </div>
+</div>
+
+<div id="overlay" class="overlay">
+  <section class="panel" role="dialog" aria-modal="true" aria-labelledby="overlay-title">
+    <h1 id="overlay-title">AURELIA BAY</h1>
+    <p id="overlay-copy">Loading…</p>
+    <button id="overlay-btn" type="button">New game</button>
+    <ul class="keys" id="overlay-keys"></ul>
+  </section>
+</div>
+
+<p id="status" role="status" aria-live="polite"></p>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three/three.module.min.js"
+  }
+}
+</script>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
